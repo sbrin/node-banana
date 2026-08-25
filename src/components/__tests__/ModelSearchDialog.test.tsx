@@ -71,6 +71,7 @@ const defaultProviderSettings: ProviderSettings = {
   providers: {
     gemini: { id: "gemini", name: "Gemini", enabled: true, apiKey: null, apiKeyEnvVar: "GEMINI_API_KEY" },
     openai: { id: "openai", name: "OpenAI", enabled: false, apiKey: null },
+    anthropic: { id: "anthropic", name: "Anthropic", enabled: false, apiKey: null },
     replicate: { id: "replicate", name: "Replicate", enabled: true, apiKey: "test-replicate-key" },
     fal: { id: "fal", name: "fal.ai", enabled: true, apiKey: "test-fal-key" },
     kie: { id: "kie", name: "Kie.ai", enabled: false, apiKey: null },
@@ -118,6 +119,7 @@ describe("ModelSearchDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    sessionStorage.clear();
     vi.useFakeTimers({ shouldAdvanceTime: true });
 
     // Default mock fetch response
@@ -392,7 +394,9 @@ describe("ModelSearchDialog", () => {
       expect(screen.queryByText("SDXL")).not.toBeInTheDocument();
       expect(screen.queryByText("TripoSR")).not.toBeInTheDocument();
       expect(screen.getByText("1 model found")).toBeInTheDocument();
-      expect(mockFetch).not.toHaveBeenCalled();
+      expect(
+        mockFetch.mock.calls.some(([url]) => String(url).startsWith("/api/models"))
+      ).toBe(false);
     });
   });
 
@@ -463,6 +467,118 @@ describe("ModelSearchDialog", () => {
       await waitFor(() => {
         expect(screen.getByText(/4 models? found/)).toBeInTheDocument();
       });
+    });
+
+    it("should show live fal.ai prices with compact billing units", async () => {
+      mockFetch.mockImplementation((input: string | URL | Request) => {
+        const url = String(input);
+        if (url.includes("/api/providers/fal/pricing")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                prices: [
+                  {
+                    endpointId: "flux/dev",
+                    pricing: {
+                      type: "per-run",
+                      amount: 0.025,
+                      currency: "USD",
+                      unit: "megapixels",
+                    },
+                  },
+                  {
+                    endpointId: "kling-video/v1.6/pro",
+                    pricing: {
+                      type: "per-second",
+                      amount: 0.05,
+                      currency: "USD",
+                      unit: "video_second",
+                    },
+                  },
+                  { endpointId: "fal-ai/triposr", pricing: null },
+                ],
+              }),
+          });
+        }
+
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, models: sampleModels }),
+        });
+      });
+
+      render(
+        <TestWrapper>
+          <ModelSearchDialog isOpen={true} onClose={vi.fn()} />
+        </TestWrapper>
+      );
+
+      expect(await screen.findByText("$0.025 / MP")).toBeInTheDocument();
+      expect(await screen.findByText("$0.05 / sec")).toBeInTheDocument();
+
+      const pricingCall = mockFetch.mock.calls.find(([url]) =>
+        String(url).includes("/api/providers/fal/pricing")
+      );
+      expect(pricingCall?.[1]).toEqual(
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({ "X-Fal-Key": "test-fal-key" }),
+        })
+      );
+    });
+
+    it("should reuse fal.ai prices from sessionStorage after a page remount", async () => {
+      mockFetch.mockImplementation((input: string | URL | Request) => {
+        const url = String(input);
+        if (url.includes("/api/providers/fal/pricing")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                prices: [
+                  {
+                    endpointId: "flux/dev",
+                    pricing: {
+                      type: "per-run",
+                      amount: 0.025,
+                      currency: "USD",
+                      unit: "image",
+                    },
+                  },
+                ],
+              }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, models: sampleModels }),
+        });
+      });
+
+      const firstRender = render(
+        <TestWrapper>
+          <ModelSearchDialog isOpen={true} onClose={vi.fn()} />
+        </TestWrapper>
+      );
+      expect(await screen.findByText("$0.025 / image")).toBeInTheDocument();
+      firstRender.unmount();
+
+      mockFetch.mockClear();
+      render(
+        <TestWrapper>
+          <ModelSearchDialog isOpen={true} onClose={vi.fn()} />
+        </TestWrapper>
+      );
+
+      expect(await screen.findByText("$0.025 / image")).toBeInTheDocument();
+      expect(
+        mockFetch.mock.calls.some(([url]) =>
+          String(url).includes("/api/providers/fal/pricing")
+        )
+      ).toBe(false);
     });
   });
 
