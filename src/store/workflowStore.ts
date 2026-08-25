@@ -2613,6 +2613,10 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
 
     // Determine the workflow directory path (passed in, from saved config, or embedded in legacy workflow JSON)
     const directoryPath = workflowPath || savedConfig?.directoryPath || workflow.directoryPath || null;
+    const savedGenerationsPath =
+      savedConfig?.directoryPath === directoryPath
+        ? savedConfig.generationsPath
+        : null;
 
     // Hydrate media if we have a directory path and the workflow has media refs
     let hydratedWorkflow = workflow;
@@ -2652,12 +2656,12 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
       workflowId: workflow.id || null,
       workflowName: workflow.name,
       saveDirectoryPath: directoryPath || null,
-      // A workflow can be opened directly from disk with no localStorage config
-      // (new browser profile, cleared storage, or a project copied from elsewhere).
-      // Media hydration already uses the workflow directory in that case, so keep
-      // carousel navigation on the same default generations directory as well.
+      // A workflow can be opened directly from disk without a localStorage config,
+      // or a copied project can reuse an ID whose config points at its old location.
+      // Only trust a configured generations path when it belongs to the directory
+      // we actually opened; otherwise use the same default as media hydration.
       generationsPath:
-        savedConfig?.generationsPath ||
+        savedGenerationsPath ||
         (directoryPath ? `${directoryPath}/generations` : null),
       lastSavedAt: savedConfig?.lastSavedAt || null,
       hasUnsavedChanges: false,

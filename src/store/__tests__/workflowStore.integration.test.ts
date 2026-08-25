@@ -2368,6 +2368,38 @@ describe("workflowStore integration tests", () => {
           "/projects/workflow-with-history/generations"
         );
       });
+
+      it("ignores a saved generations directory from an old project location", async () => {
+        globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          "workflow-with-stale-config": {
+            workflowId: "workflow-with-stale-config",
+            name: "Workflow with stale config",
+            directoryPath: "/projects/old-location",
+            generationsPath: "/projects/old-location/generations",
+            lastSavedAt: 1,
+          },
+        }));
+
+        expect(globalThis.localStorage.getItem(STORAGE_KEY)).toContain(
+          "/projects/old-location/generations"
+        );
+
+        await useWorkflowStore.getState().loadWorkflow(
+          {
+            version: 1,
+            id: "workflow-with-stale-config",
+            name: "Workflow with stale config",
+            nodes: [],
+            edges: [],
+            edgeStyle: "angular",
+          },
+          "/projects/current-location"
+        );
+
+        expect(useWorkflowStore.getState().generationsPath).toBe(
+          "/projects/current-location/generations"
+        );
+      });
     });
   });
 
