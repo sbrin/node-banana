@@ -582,6 +582,91 @@ describe("ModelSearchDialog", () => {
     });
   });
 
+  describe("Price Sorting", () => {
+    it("should sort priced fal.ai models in both directions and keep unknown prices last", async () => {
+      mockFetch.mockImplementation((input: string | URL | Request) => {
+        const url = String(input);
+        if (url.includes("/api/providers/fal/pricing")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                prices: [
+                  {
+                    endpointId: "flux/dev",
+                    pricing: {
+                      type: "per-run",
+                      amount: 0.025,
+                      currency: "USD",
+                      unit: "image",
+                    },
+                  },
+                  {
+                    endpointId: "kling-video/v1.6/pro",
+                    pricing: {
+                      type: "per-second",
+                      amount: 0.05,
+                      currency: "USD",
+                      unit: "video_second",
+                    },
+                  },
+                  { endpointId: "fal-ai/triposr", pricing: null },
+                ],
+              }),
+          });
+        }
+
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, models: sampleModels }),
+        });
+      });
+
+      const { container } = render(
+        <TestWrapper>
+          <ModelSearchDialog isOpen={true} onClose={vi.fn()} />
+        </TestWrapper>
+      );
+
+      const sortSelect = screen.getByLabelText("Sort models");
+      expect(sortSelect).toHaveTextContent("Default");
+      expect(sortSelect).toHaveTextContent("Price: Low to High");
+      expect(sortSelect).toHaveTextContent("Price: High to Low");
+      await screen.findByText("$0.025 / image");
+      mockFetch.mockClear();
+
+      const cardIds = () =>
+        Array.from(container.querySelectorAll("[data-model-card]")).map(
+          (card) => card.getAttribute("data-model-card")
+        );
+
+      expect(cardIds()).toEqual([
+        "flux/dev",
+        "stability-ai/sdxl",
+        "kling-video/v1.6/pro",
+        "fal-ai/triposr",
+      ]);
+
+      fireEvent.change(sortSelect, { target: { value: "price-asc" } });
+      expect(cardIds()).toEqual([
+        "flux/dev",
+        "kling-video/v1.6/pro",
+        "stability-ai/sdxl",
+        "fal-ai/triposr",
+      ]);
+
+      fireEvent.change(sortSelect, { target: { value: "price-desc" } });
+      expect(cardIds()).toEqual([
+        "kling-video/v1.6/pro",
+        "flux/dev",
+        "stability-ai/sdxl",
+        "fal-ai/triposr",
+      ]);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
   describe("Model Selection", () => {
     it("should call onModelSelected when a model card is clicked (callback mode)", async () => {
       const onModelSelected = vi.fn();

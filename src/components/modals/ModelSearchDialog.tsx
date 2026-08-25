@@ -264,6 +264,7 @@ function getPaneCenter() {
 // Capability filter options
 type CapabilityFilter = "all" | "image" | "video" | "3d" | "audio";
 type ModelTypeFilter = "all" | ModelCapability;
+type ModelSortOption = "default" | "price-asc" | "price-desc";
 
 const CAPABILITY_META: Record<
   ModelCapability,
@@ -371,6 +372,8 @@ export function ModelSearchDialog({
     useState<CapabilityFilter>(initialCapabilityFilter || "all");
   const [modelTypeFilter, setModelTypeFilter] =
     useState<ModelTypeFilter>("all");
+  const [modelSort, setModelSort] =
+    useState<ModelSortOption>("default");
   const [models, setModels] = useState<ProviderModel[]>([]);
   const [pricingPendingIds, setPricingPendingIds] = useState<Set<string>>(
     () => new Set()
@@ -811,9 +814,23 @@ export function ModelSearchDialog({
   }, [models, modelTypeFilter]);
 
   const filteredModels = useMemo(() => {
-    if (modelTypeFilter === "all") return models;
-    return models.filter((model) => model.capabilities.includes(modelTypeFilter));
-  }, [models, modelTypeFilter]);
+    const filtered =
+      modelTypeFilter === "all"
+        ? models
+        : models.filter((model) => model.capabilities.includes(modelTypeFilter));
+
+    if (modelSort === "default") return filtered;
+
+    return [...filtered].sort((a, b) => {
+      // fal.ai is the only provider with live Browse Models pricing for now.
+      const aPrice = a.provider === "fal" ? a.pricing?.amount : undefined;
+      const bPrice = b.provider === "fal" ? b.pricing?.amount : undefined;
+      if (aPrice === undefined && bPrice === undefined) return 0;
+      if (aPrice === undefined) return 1;
+      if (bPrice === undefined) return -1;
+      return modelSort === "price-asc" ? aPrice - bPrice : bPrice - aPrice;
+    });
+  }, [models, modelTypeFilter, modelSort]);
 
   // Filter recent models by capability
   const filteredRecentModels = useMemo(() => {
@@ -1095,6 +1112,21 @@ export function ModelSearchDialog({
               ))}
             </select>
 
+            {/* Sort by the listed provider unit price; unknown prices stay last. */}
+            <select
+              aria-label="Sort models"
+              title="Sort by listed unit price; billing units may differ"
+              value={modelSort}
+              onChange={(e) =>
+                setModelSort(e.target.value as ModelSortOption)
+              }
+              className="px-3 py-2 text-sm bg-neutral-700 border border-neutral-600 rounded text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-500"
+            >
+              <option value="default">Default</option>
+              <option value="price-asc">Price: Low to High</option>
+              <option value="price-desc">Price: High to Low</option>
+            </select>
+
             {/* Refresh Cache */}
             <button
               onClick={handleRefresh}
@@ -1298,6 +1330,7 @@ export function ModelSearchDialog({
               {filteredModels.map((model) => (
                 <button
                   key={`${model.provider}-${model.id}`}
+                  data-model-card={model.id}
                   onClick={() => handleSelectModel(model)}
                   className="flex items-start gap-3 p-4 bg-neutral-700/50 hover:bg-neutral-700 border border-neutral-600/50 hover:border-neutral-500 rounded-lg transition-colors text-left cursor-pointer group"
                 >
