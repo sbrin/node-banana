@@ -190,7 +190,9 @@ const CAPABILITY_META: Record<
   },
 };
 
-const CAPABILITY_ORDER = Object.keys(CAPABILITY_META) as ModelCapability[];
+const CAPABILITY_ORDER = (Object.keys(CAPABILITY_META) as ModelCapability[]).sort(
+  (a, b) => CAPABILITY_META[a].label.localeCompare(CAPABILITY_META[b].label)
+);
 
 // API response type
 interface ModelsResponse {
