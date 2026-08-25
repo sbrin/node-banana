@@ -362,6 +362,24 @@ describe("GenerateImageNode", () => {
       expect(screen.getByTitle("Next image")).toBeInTheDocument();
     });
 
+    it("should keep carousel controls out of React Flow node dragging", () => {
+      render(
+        <TestWrapper>
+          <GenerateImageNode {...createNodeProps({
+            outputImage: "data:image/png;base64,abc123",
+            imageHistory: [
+              { id: "img1", timestamp: 2, prompt: "test1", aspectRatio: "1:1", model: "nano-banana" },
+              { id: "img2", timestamp: 1, prompt: "test2", aspectRatio: "1:1", model: "nano-banana" },
+            ],
+            selectedHistoryIndex: 0,
+          })} />
+        </TestWrapper>
+      );
+
+      expect(screen.getByTitle("Previous image")).toHaveClass("nodrag", "nopan");
+      expect(screen.getByTitle("Next image")).toHaveClass("nodrag", "nopan");
+    });
+
     it("should show current position in carousel", () => {
       render(
         <TestWrapper>
