@@ -857,7 +857,7 @@ export function ModelSearchDialog({
               }
               className="px-3 py-2 text-sm bg-neutral-700 border border-neutral-600 rounded text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-500"
             >
-              <option value="all">All Model Types</option>
+              <option value="all">All Models</option>
               {availableModelTypes.map((capability) => (
                 <option key={capability} value={capability}>
                   {CAPABILITY_META[capability].label}
