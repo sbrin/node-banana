@@ -177,9 +177,9 @@ describe("fal.ai prompt passthrough with dynamicInputs", () => {
   it("returns a task id that survives the request that created it", async () => {
     const submission = await submitFalTask("test-req", "test-api-key", makeInput());
 
-    // The composite id carries the model, so a later poll can rebuild the
-    // queue URLs without any server-side state.
-    expect(submission).toEqual({ taskId: "fal-ai/test-model::test-123" });
+    expect(submission).toEqual({
+      taskId: "fal-ai/test-model::test-123::https%3A%2F%2Fqueue.fal.run%2Ffal-ai%2Ftest-model%2Frequests%2Ftest-123%2Fstatus::https%3A%2F%2Fqueue.fal.run%2Ffal-ai%2Ftest-model%2Frequests%2Ftest-123",
+    });
   });
 
   it("returns the final request cost from billed units and live pricing", async () => {

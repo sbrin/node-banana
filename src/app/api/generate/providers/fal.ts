@@ -461,19 +461,61 @@ export async function submitFalTask(
     return { error: "No request_id in queue response" };
   }
 
+  const statusUrl = getFalQueueUrl(submitResult.status_url, true);
+  const responseUrl = getFalQueueUrl(submitResult.response_url, false);
   console.log(`[API:${requestId}] Queue request submitted: ${falRequestId}`);
-  // The queue id plus the model id fully identify the task, so status and
-  // result URLs are reconstructed on each poll. Nothing else needs to survive
-  // between requests, which is what makes a reload recoverable.
-  return { taskId: `${modelId}::${falRequestId}` };
+
+  // Some models return queue URLs that cannot be inferred solely from their
+  // endpoint id. Keep Fal's URLs in the durable task id so reload recovery
+  // polls exactly the endpoint that accepted the job.
+  return {
+    taskId: createFalTaskId(modelId, falRequestId, statusUrl, responseUrl),
+  };
 }
 
-/** Splits the composite task id back into its model and queue request parts. */
-export function parseFalTaskId(taskId: string): { modelId: string; falRequestId: string } | null {
-  const separator = taskId.lastIndexOf("::");
-  if (separator <= 0) return null;
-  const modelId = taskId.slice(0, separator);
-  const falRequestId = taskId.slice(separator + 2);
+interface FalTaskIdParts {
+  modelId: string;
+  falRequestId: string;
+  statusUrl?: string;
+  responseUrl?: string;
+}
+
+function getFalQueueUrl(value: unknown, isStatusUrl: boolean): string | null {
+  if (typeof value !== "string") return null;
+  const urlCheck = validateMediaUrl(value);
+  if (!urlCheck.valid) return null;
+
+  try {
+    const parsed = new URL(value);
+    const expectedSuffix = isStatusUrl ? "/status" : "";
+    if (
+      parsed.origin !== "https://queue.fal.run" ||
+      !parsed.pathname.includes("/requests/") ||
+      (expectedSuffix && !parsed.pathname.endsWith(expectedSuffix))
+    ) {
+      return null;
+    }
+    return parsed.href;
+  } catch {
+    return null;
+  }
+}
+
+function createFalTaskId(
+  modelId: string,
+  falRequestId: string,
+  statusUrl: string | null,
+  responseUrl: string | null
+): string {
+  if (!statusUrl || !responseUrl) return `${modelId}::${falRequestId}`;
+  return `${modelId}::${falRequestId}::${encodeURIComponent(statusUrl)}::${encodeURIComponent(responseUrl)}`;
+}
+
+/** Splits the durable task id back into its queue request and provider URLs. */
+export function parseFalTaskId(taskId: string): FalTaskIdParts | null {
+  const parts = taskId.split("::");
+  if (parts.length !== 2 && parts.length !== 4) return null;
+  const [modelId, falRequestId, encodedStatusUrl, encodedResponseUrl] = parts;
   // Model ids are path-like (for example, fal-ai/flux/schnell) and queue ids
   // are UUID-like. Keeping this narrow prevents a client-held task id from
   // changing which endpoint the server polls.
@@ -484,14 +526,26 @@ export function parseFalTaskId(taskId: string): { modelId: string; falRequestId:
   ) {
     return null;
   }
-  return { modelId, falRequestId };
+
+  if (!encodedStatusUrl || !encodedResponseUrl) return { modelId, falRequestId };
+
+  try {
+    const statusUrl = getFalQueueUrl(decodeURIComponent(encodedStatusUrl), true);
+    const responseUrl = getFalQueueUrl(decodeURIComponent(encodedResponseUrl), false);
+    return statusUrl && responseUrl ? { modelId, falRequestId, statusUrl, responseUrl } : null;
+  } catch {
+    return null;
+  }
 }
 
 function falQueueUrls(
-  modelId: string,
-  falRequestId: string
+  task: FalTaskIdParts
 ): { statusUrl: string; responseUrl: string } | null {
-  const base = `https://queue.fal.run/${modelId}/requests/${encodeURIComponent(falRequestId)}`;
+  if (task.statusUrl && task.responseUrl) {
+    return { statusUrl: task.statusUrl, responseUrl: task.responseUrl };
+  }
+
+  const base = `https://queue.fal.run/${task.modelId}/requests/${encodeURIComponent(task.falRequestId)}`;
   // The task id now arrives from the client, so confirm the composed URL still
   // resolves to fal's queue host before we fetch it.
   let parsed: URL;
@@ -519,7 +573,7 @@ export async function checkFalTaskOnce(
   const parsed = parseFalTaskId(taskId);
   if (!parsed) return { status: "failed", error: "Malformed fal task id" };
 
-  const urls = falQueueUrls(parsed.modelId, parsed.falRequestId);
+  const urls = falQueueUrls(parsed);
   if (!urls) return { status: "failed", error: "Malformed fal task id" };
   const { statusUrl } = urls;
 
@@ -573,7 +627,7 @@ export async function fetchFalMediaResult(
   if (!parsed) return { success: false, error: "Malformed fal task id" };
 
   const { modelId, falRequestId } = parsed;
-  const urls = falQueueUrls(modelId, falRequestId);
+  const urls = falQueueUrls(parsed);
   if (!urls) return { success: false, error: "Malformed fal task id" };
   const { responseUrl } = urls;
   const { capabilities, modelName } = info;
