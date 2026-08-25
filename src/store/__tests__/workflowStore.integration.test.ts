@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act } from "@testing-library/react";
 import { useWorkflowStore } from "../workflowStore";
 import type { WorkflowNode, WorkflowEdge } from "@/types";
-import { LAST_WORKFLOW_DIRECTORY_KEY } from "../utils/localStorage";
+import { LAST_WORKFLOW_DIRECTORY_KEY, STORAGE_KEY } from "../utils/localStorage";
 
 // Mock the Toast hook
 vi.mock("@/components/Toast", () => ({
@@ -2346,6 +2346,26 @@ describe("workflowStore integration tests", () => {
 
         expect(globalThis.localStorage.getItem(LAST_WORKFLOW_DIRECTORY_KEY)).toBe(
           "/projects/remembered"
+        );
+      });
+
+      it("derives the generations directory when a loaded workflow has no saved config", async () => {
+        delete mockLocalStorage[STORAGE_KEY];
+
+        await useWorkflowStore.getState().loadWorkflow(
+          {
+            version: 1,
+            id: "workflow-with-history",
+            name: "Workflow with history",
+            nodes: [],
+            edges: [],
+            edgeStyle: "angular",
+          },
+          "/projects/workflow-with-history"
+        );
+
+        expect(useWorkflowStore.getState().generationsPath).toBe(
+          "/projects/workflow-with-history/generations"
         );
       });
     });

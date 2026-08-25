@@ -2652,7 +2652,13 @@ const workflowStoreImpl: StateCreator<WorkflowStore> = (set, get) => ({
       workflowId: workflow.id || null,
       workflowName: workflow.name,
       saveDirectoryPath: directoryPath || null,
-      generationsPath: savedConfig?.generationsPath || null,
+      // A workflow can be opened directly from disk with no localStorage config
+      // (new browser profile, cleared storage, or a project copied from elsewhere).
+      // Media hydration already uses the workflow directory in that case, so keep
+      // carousel navigation on the same default generations directory as well.
+      generationsPath:
+        savedConfig?.generationsPath ||
+        (directoryPath ? `${directoryPath}/generations` : null),
       lastSavedAt: savedConfig?.lastSavedAt || null,
       hasUnsavedChanges: false,
       // Restore cost data
