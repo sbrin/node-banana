@@ -50,3 +50,4 @@ logs/*.json
 .agents/
 
 .superset/
+.gstack/
