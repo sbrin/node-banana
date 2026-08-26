@@ -275,7 +275,11 @@ describe("executeNanoBanana", () => {
       aspectRatio: "1:1" as const,
       model: "nano-banana",
     };
-    const node = makeNode({ imageHistory: [existingImage] });
+    const node = makeNode({
+      outputImage: "data:image/png;base64,previous-success",
+      outputImageRef: "existing-image",
+      imageHistory: [existingImage],
+    });
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({ success: false, error: "Provider exploded" }),
@@ -285,14 +289,20 @@ describe("executeNanoBanana", () => {
     await expect(executeNanoBanana(ctx)).rejects.toThrow("Provider exploded");
 
     const calls = (ctx.updateNodeData as ReturnType<typeof vi.fn>).mock.calls;
-    const errorCall = calls.find(
+    const errorCalls = calls.filter(
       (c: unknown[]) => (c[1] as Record<string, unknown>).status === "error"
     );
+    expect(errorCalls).toHaveLength(1);
+    const errorCall = errorCalls[0];
     const payload = errorCall![1] as {
+      outputImage: string | null;
+      outputImageRef?: string;
       selectedHistoryIndex: number;
       imageHistory: Array<Record<string, unknown>>;
     };
 
+    expect(payload.outputImage).toBeNull();
+    expect(payload.outputImageRef).toBeUndefined();
     expect(payload.selectedHistoryIndex).toBe(1);
     expect(payload.imageHistory).toHaveLength(2);
     expect(payload.imageHistory[0]).toBe(existingImage);

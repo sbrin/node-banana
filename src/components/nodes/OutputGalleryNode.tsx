@@ -260,7 +260,7 @@ export function OutputGalleryNode({ id, data, selected }: NodeProps<OutputGaller
     const images = nodeData.images || [];
     const videos = nodeData.videos || [];
 
-    // Gallery arrays are chronological, so the first generated item appears first.
+    // Gallery arrays remain newest-first for compatibility with saved v1 workflows.
     for (let i = 0; i < images.length; i++) {
       const nodeId = addNode("imageInput", { x: startX, y: currentY }, { image: images[i], filename: `gallery-image-${i + 1}.png` });
       newNodeIds.push(nodeId);

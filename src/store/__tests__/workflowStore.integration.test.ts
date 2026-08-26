@@ -2316,7 +2316,10 @@ describe("workflowStore integration tests", () => {
           nodes: [
             createTestNode("nanoBanana-1", "nanoBanana", {
               model: "nano-banana",
-              imageHistory: [{ id: "latest" }, { id: "older" }],
+              imageHistory: [
+                { id: "older", timestamp: 1 },
+                { id: "latest", timestamp: 2 },
+              ],
               selectedHistoryIndex: 99,
               outputImage: "data:image/png;base64,latest",
             }),
@@ -2326,7 +2329,7 @@ describe("workflowStore integration tests", () => {
         });
 
         const data = useWorkflowStore.getState().nodes[0].data as Record<string, unknown>;
-        expect(data.selectedHistoryIndex).toBe(0);
+        expect(data.selectedHistoryIndex).toBe(1);
       });
 
       it("remembers the loaded workflow directory", async () => {

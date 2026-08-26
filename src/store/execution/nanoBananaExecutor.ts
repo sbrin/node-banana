@@ -279,23 +279,8 @@ export async function executeNanoBanana(
           trackSaveGeneration(imageId, savePromise);
         }
       } else {
-        // Preserve the failed attempt in the carousel so navigation can move
-        // past it instead of trying to load a generation that was never saved.
-        const timestamp = Date.now();
-        const updatedHistory = appendGenerationHistory(nodeData.imageHistory, {
-          id: `${timestamp}`,
-          timestamp,
-          prompt: finalPrompt,
-          aspectRatio: nodeData.aspectRatio,
-          model: modelToUse.modelId,
-          error: result.error || "Generation failed",
-        });
-        updateNodeData(node.id, {
-          imageHistory: updatedHistory,
-          selectedHistoryIndex: updatedHistory.length - 1,
-          status: "error",
-          error: result.error || "Generation failed",
-        });
+        // The catch block below records every failure exactly once, including
+        // successful HTTP responses whose payload reports success: false.
         throw new Error(result.error || "Generation failed");
       }
     } catch (error) {
@@ -326,6 +311,8 @@ export async function executeNanoBanana(
         error: errorMessage,
       });
       updateNodeData(node.id, {
+        outputImage: null,
+        outputImageRef: undefined,
         imageHistory: updatedHistory,
         selectedHistoryIndex: updatedHistory.length - 1,
         status: "error",
