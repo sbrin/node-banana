@@ -241,7 +241,8 @@ export async function executeGenerateVideo(
 
   const missingParameters = getMissingRequiredModelParameters(
     nodeData.requiredModelParameters,
-    nodeData.parameters
+    nodeData.parameters,
+    dynamicInputs
   );
   if (missingParameters.length > 0) {
     const error = formatMissingRequiredModelParameters(missingParameters);

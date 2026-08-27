@@ -8,10 +8,13 @@ function hasValue(value: unknown): boolean {
 
 export function getMissingRequiredModelParameters(
   requiredParameters: RequiredModelParameter[] | undefined,
-  parameters: Record<string, unknown> | undefined
+  parameters: Record<string, unknown> | undefined,
+  connectedInputs?: Record<string, unknown>
 ): RequiredModelParameter[] {
   return (requiredParameters || []).filter(
-    (parameter) => !hasValue(parameters?.[parameter.name])
+    (parameter) =>
+      !hasValue(parameters?.[parameter.name]) &&
+      !hasValue(connectedInputs?.[parameter.name])
   );
 }
 

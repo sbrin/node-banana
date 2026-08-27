@@ -249,6 +249,15 @@ export function getConnectedInputsPure(
         handleToSchemaName["audio"] = input.name;
       }
     });
+
+    // Also accept the exact schema field name as a handle id (e.g. an edge saved
+    // against "prompt" or "text"). Positional ids win, so this only fills gaps
+    // left by older workflows and by nodes that label handles by API field.
+    inputSchema.forEach((input) => {
+      if (!(input.name in handleToSchemaName)) {
+        handleToSchemaName[input.name] = input.name;
+      }
+    });
   }
 
   // Populate dynamicInputs for a passthrough (router/switch) edge, mirroring the direct-connection
@@ -480,9 +489,13 @@ export function validateWorkflowPure(
     .filter((node) => ["nanoBanana", "generateVideo", "generate3d", "generateAudio"].includes(node.type))
     .forEach((node) => {
       const data = node.data as NanoBananaNodeData | GenerateVideoNodeData | Generate3DNodeData | GenerateAudioNodeData;
+      // Mirror the executors: a required field is satisfied either by a typed-in
+      // parameter or by an upstream node wired into its connector.
+      const { dynamicInputs } = getConnectedInputsPure(node.id, nodes, edges);
       const missingParameters = getMissingRequiredModelParameters(
         data.requiredModelParameters,
-        data.parameters
+        data.parameters,
+        dynamicInputs
       );
       if (missingParameters.length > 0) {
         errors.push(`${node.type} node "${node.id}" ${formatMissingRequiredModelParameters(missingParameters).toLowerCase()}`);
