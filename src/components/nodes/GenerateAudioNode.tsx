@@ -188,24 +188,70 @@ export function GenerateAudioNode({ id, data, selected }: NodeProps<GenerateAudi
   const dynamicHandles = useMemo(() => {
     if (!nodeData.inputSchema || nodeData.inputSchema.length === 0) return null;
 
-    return nodeData.inputSchema.map((input, index) => {
-      const handleType = input.type === "image" ? "image" : input.type === "audio" ? "audio" : "text";
-      const topPx = 50 + (index - nodeData.inputSchema!.length / 2 + 0.5) * 20;
-      const handleColor = handleType === "image" ? "var(--handle-color-image)" : handleType === "audio" ? "var(--handle-color-audio)" : "var(--handle-color-text)";
-      return (
-        <React.Fragment key={input.name}>
-          <Handle
-            type="target"
-            position={Position.Left}
-            id={input.name}
-            data-handletype={handleType}
-            style={{ top: `${topPx}px` }}
-            title={input.label}
-          />
-          <HandleLabel label={input.label} side="target" color={handleColor} top={`${topPx - 18}px`} visible={showLabels} />
-        </React.Fragment>
-      );
+    // Handle IDs must be `${type}-${index}` so getConnectedInputs() can map them
+    // back to schema parameter names. The first handle of each type also keeps a
+    // hidden legacy alias (`text`, `image`, `audio`) so edges saved before the
+    // schema was known still resolve instead of being dropped by React Flow.
+    const slots = nodeData.inputSchema.map((input) => ({
+      input,
+      type: input.type === "image" ? "image" : input.type === "audio" ? "audio" : "text",
+    }));
+
+    const indexByType: Record<string, number> = {};
+    const handles = slots.map(({ input, type }) => {
+      const typeIndex = indexByType[type] ?? 0;
+      indexByType[type] = typeIndex + 1;
+      return { input, type, id: `${type}-${typeIndex}`, isFirstOfType: typeIndex === 0 };
     });
+
+    const totalSlots = handles.length;
+
+    return (
+      <>
+        {handles.map((handle, index) => {
+          const topPercent = ((index + 1) / (totalSlots + 1)) * 100;
+          const handleColor =
+            handle.type === "image"
+              ? "var(--handle-color-image)"
+              : handle.type === "audio"
+                ? "var(--handle-color-audio)"
+                : "var(--handle-color-text)";
+          return (
+            <React.Fragment key={handle.id}>
+              <Handle
+                type="target"
+                position={Position.Left}
+                id={handle.id}
+                data-handletype={handle.type}
+                data-schema-name={handle.input.name}
+                style={{ top: `${topPercent}%`, zIndex: 10 }}
+                isConnectable={true}
+                title={handle.input.description || handle.input.label}
+              />
+              <HandleLabel
+                label={handle.input.label}
+                side="target"
+                color={handleColor}
+                top={`calc(${topPercent}% - 18px)`}
+                visible={showLabels}
+              />
+            </React.Fragment>
+          );
+        })}
+        {handles
+          .filter((handle) => handle.isFirstOfType)
+          .map((handle) => (
+            <Handle
+              key={`legacy-${handle.type}`}
+              type="target"
+              position={Position.Left}
+              id={handle.type}
+              style={{ top: "50%", opacity: 0, pointerEvents: "none" }}
+              isConnectable={false}
+            />
+          ))}
+      </>
+    );
   }, [nodeData.inputSchema, showLabels]);
 
   return (
@@ -436,13 +482,22 @@ export function GenerateAudioNode({ id, data, selected }: NodeProps<GenerateAudi
 
         {/* Default prompt handle (if no dynamic schema) */}
         {(!nodeData.inputSchema || nodeData.inputSchema.length === 0) && (
-          <Handle
-            type="target"
-            position={Position.Left}
-            id="text"
-            data-handletype="text"
-            style={{ background: "rgb(251, 191, 36)" }}
-          />
+          <>
+            <Handle
+              type="target"
+              position={Position.Left}
+              id="text"
+              data-handletype="text"
+              style={{ top: "50%", zIndex: 10 }}
+            />
+            <HandleLabel
+              label="Prompt"
+              side="target"
+              color="var(--handle-color-text)"
+              top="calc(50% - 18px)"
+              visible={showLabels}
+            />
+          </>
         )}
 
         {/* Output audio handle */}
@@ -451,7 +506,7 @@ export function GenerateAudioNode({ id, data, selected }: NodeProps<GenerateAudi
           position={Position.Right}
           id="audio"
           data-handletype="audio"
-          style={{ background: "rgb(167, 139, 250)" }}
+          style={{ zIndex: 10 }}
         />
         <HandleLabel label="Audio" side="source" color="var(--handle-color-audio)" visible={showLabels} />
 
