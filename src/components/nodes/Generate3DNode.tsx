@@ -18,6 +18,7 @@ import { browseRegistry } from "@/utils/browseRegistry";
 import { useShowHandleLabels } from "@/hooks/useShowHandleLabels";
 import { HandleLabel } from "./HandleLabel";
 import { GenerationCostBadge } from "./GenerationCostBadge";
+import { getPrimaryTextInput } from "@/utils/modelTextInput";
 
 // 3D generation capabilities
 const THREE_D_CAPABILITIES: ModelCapability[] = ["text-to-3d", "image-to-3d"];
@@ -119,6 +120,12 @@ export function Generate3DNode({ id, data, selected }: NodeProps<Generate3DNodeT
 
   // Inline parameters: compute collapse state and toggle handler
   const isParamsExpanded = nodeData.parametersExpanded ?? true; // default expanded
+  const fallbackTextLabel =
+    getPrimaryTextInput({
+      inputSchema: nodeData.inputSchema,
+      requiredModelParameters: nodeData.requiredModelParameters,
+      parameters: nodeData.parameters,
+    })?.label ?? "Prompt";
 
   const handleToggleParams = useCallback(() => {
     updateNodeData(id, { parametersExpanded: !isParamsExpanded });
@@ -341,7 +348,7 @@ export function Generate3DNode({ id, data, selected }: NodeProps<Generate3DNodeT
             style={{ top: "65%" }}
             data-handletype="text"
           />
-          <HandleLabel label="Prompt" side="target" color="var(--handle-color-text)" top="calc(65% - 18px)" visible={showLabels} />
+          <HandleLabel label={fallbackTextLabel} side="target" color="var(--handle-color-text)" top="calc(65% - 18px)" visible={showLabels} />
         </>
       )}
 

@@ -380,5 +380,22 @@ describe("GenerateAudioNode", () => {
 
       expect(screen.getByText("Prompt")).toBeInTheDocument();
     });
+
+    it("should use the saved model field name while the schema is loading", () => {
+      render(
+        <TestWrapper>
+          <GenerateAudioNode
+            {...createNodeProps({
+              selectedModel: { provider: "fal", modelId: "xai/tts/v1", displayName: "xAI Text to Speech" },
+              requiredModelParameters: [{ name: "text", label: "Text" }],
+              parameters: { language: "en", voice: "ara" },
+            })}
+          />
+        </TestWrapper>
+      );
+
+      expect(screen.getByText("Text")).toBeInTheDocument();
+      expect(screen.queryByText("Prompt")).not.toBeInTheDocument();
+    });
   });
 });

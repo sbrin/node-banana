@@ -7,7 +7,9 @@ import { useProviderApiKeys } from "@/store/workflowStore";
 import { deduplicatedFetch } from "@/utils/deduplicatedFetch";
 
 // localStorage cache for model schemas (persists across dev server restarts)
-const SCHEMA_CACHE_KEY = "node-banana-schema-cache";
+// Ignore schema entries written before text inputs became connectable. Keeping
+// those entries would preserve the old `inputs: []` shape in the browser.
+const SCHEMA_CACHE_KEY = "node-banana-schema-cache-v2";
 const SCHEMA_CACHE_TTL = 48 * 60 * 60 * 1000; // 48 hours
 
 interface SchemaCacheEntry {
@@ -64,16 +66,28 @@ interface ModelParametersProps {
   onRequiredParametersLoaded?: (parameters: RequiredModelParameter[]) => void;
 }
 
-function getRequiredParameters(parameters: ModelParameter[]): RequiredModelParameter[] {
-  return parameters
-    .filter((parameter) => parameter.required && parameter.default === undefined)
-    .map((parameter) => ({
-      name: parameter.name,
-      label: parameter.name
-        .replace(/_url$/, "")
-        .replace(/_/g, " ")
-        .replace(/\b\w/g, (character) => character.toUpperCase()),
-    }));
+function getRequiredParameters(
+  parameters: ModelParameter[],
+  inputs: ModelInputDef[] = [],
+): RequiredModelParameter[] {
+  const required = new Map<string, RequiredModelParameter>();
+  for (const parameter of parameters) {
+    if (parameter.required && parameter.default === undefined) {
+      required.set(parameter.name, {
+        name: parameter.name,
+        label: parameter.name
+          .replace(/_url$/, "")
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (character) => character.toUpperCase()),
+      });
+    }
+  }
+  for (const input of inputs) {
+    if (input.required && !required.has(input.name)) {
+      required.set(input.name, { name: input.name, label: input.label });
+    }
+  }
+  return [...required.values()];
 }
 
 /**
@@ -91,6 +105,7 @@ function ModelParametersInner({
   onRequiredParametersLoaded,
 }: ModelParametersProps) {
   const [schema, setSchema] = useState<ModelParameter[]>([]);
+  const [inputs, setInputs] = useState<ModelInputDef[]>([]);
   // Tracks which `${provider}:${modelId}` the current `schema` belongs to.
   // Prevents the defaults effect from writing a previous model's defaults into
   // freshly-cleared parameters during the render where modelId changes but the
@@ -105,6 +120,7 @@ function ModelParametersInner({
   useEffect(() => {
     if (!modelId) {
       setSchema([]);
+      setInputs([]);
       setSchemaKey("");
       onInputsLoaded?.([]);
       onRequiredParametersLoaded?.([]);
@@ -123,9 +139,10 @@ function ModelParametersInner({
       if (cached) {
         if (cancelled) return;
         setSchema(cached.parameters);
+        setInputs(cached.inputs);
         setSchemaKey(currentKey);
         onInputsLoaded?.(cached.inputs);
-        onRequiredParametersLoaded?.(getRequiredParameters(cached.parameters));
+        onRequiredParametersLoaded?.(getRequiredParameters(cached.parameters, cached.inputs));
         return;
       }
 
@@ -167,18 +184,20 @@ function ModelParametersInner({
 
         if (cancelled) return;
         setSchema(params);
+        setInputs(inputs);
         setSchemaKey(currentKey);
 
         // Pass inputs to parent for dynamic handle rendering
         if (onInputsLoaded) {
           onInputsLoaded(inputs);
         }
-        onRequiredParametersLoaded?.(getRequiredParameters(params));
+        onRequiredParametersLoaded?.(getRequiredParameters(params, inputs));
       } catch (err) {
         if (cancelled) return;
         console.error("Failed to fetch model schema:", err);
         setError(err instanceof Error ? err.message : "Failed to fetch schema");
         setSchema([]);
+        setInputs([]);
         setSchemaKey(currentKey);
         onRequiredParametersLoaded?.([]);
       } finally {
@@ -217,10 +236,13 @@ function ModelParametersInner({
 
   // Notify parent to resize node when schema loads
   useEffect(() => {
-    if (schema.length > 0 && onExpandChange) {
-      onExpandChange(true, schema.length);
+    const parameterNames = new Set(schema.map((parameter) => parameter.name));
+    const mergedParameterCount =
+      schema.length + inputs.filter((input) => input.type === "text" && !parameterNames.has(input.name)).length;
+    if (mergedParameterCount > 0 && onExpandChange) {
+      onExpandChange(true, mergedParameterCount);
     }
-  }, [schema, onExpandChange]);
+  }, [schema, inputs, onExpandChange]);
 
   const handleParameterChange = useCallback(
     (name: string, value: unknown) => {
@@ -239,8 +261,34 @@ function ModelParametersInner({
     [parameters, onParametersChange]
   );
 
+  // A text connector and its inline value are two views of the same API field.
+  // Some providers expose that field only as `inputs`, so add a synthetic text
+  // parameter and merge by name to avoid duplicate controls.
+  const mergedSchema = useMemo(() => {
+    const byName = new Map(schema.map((parameter) => [parameter.name, parameter]));
+    for (const input of inputs) {
+      if (input.type !== "text") continue;
+      const existing = byName.get(input.name);
+      if (existing) {
+        byName.set(input.name, {
+          ...existing,
+          required: existing.required || input.required,
+          description: existing.description || input.description,
+        });
+      } else {
+        byName.set(input.name, {
+          name: input.name,
+          type: "string",
+          required: input.required,
+          description: input.description,
+        });
+      }
+    }
+    return [...byName.values()];
+  }, [schema, inputs]);
+
   const sortedSchema = useMemo(() => {
-    return [...schema].sort((a, b) => {
+    return [...mergedSchema].sort((a, b) => {
       // Sort order: dropdowns first, then numbers, then strings, then checkboxes last
       const typeOrder = (p: ModelParameter) => {
         if (p.enum && p.enum.length > 0) return 0; // dropdowns first
@@ -250,7 +298,7 @@ function ModelParametersInner({
       };
       return typeOrder(a) - typeOrder(b);
     });
-  }, [schema]);
+  }, [mergedSchema]);
 
   const useGrid = sortedSchema.length > 4;
   const gridRef = useRef<HTMLDivElement>(null);
@@ -286,7 +334,7 @@ function ModelParametersInner({
   }
 
   // Don't render if no schema available and not loading
-  if (!isLoading && schema.length === 0 && !error) {
+  if (!isLoading && mergedSchema.length === 0 && !error) {
     return null;
   }
 
@@ -296,7 +344,7 @@ function ModelParametersInner({
         <span className="text-[9px] text-red-400">{error}</span>
       ) : isLoading ? (
         <span className="text-[9px] text-neutral-500">Loading parameters...</span>
-      ) : schema.length === 0 ? (
+      ) : mergedSchema.length === 0 ? (
         <span className="text-[9px] text-neutral-500">No parameters available</span>
       ) : (
         <div
@@ -311,6 +359,7 @@ function ModelParametersInner({
               key={param.name}
               param={param}
               name={param.name}
+              label={inputs.find((input) => input.name === param.name)?.label}
               value={parameters[param.name]}
               onChange={handleParameterChange}
             />
@@ -324,6 +373,7 @@ function ModelParametersInner({
 interface ParameterInputProps {
   param: ModelParameter;
   name: string;
+  label?: string;
   value: unknown;
   onChange: (name: string, value: unknown) => void;
 }
@@ -333,12 +383,12 @@ interface ParameterInputProps {
  * Text and number inputs use local state during editing to prevent
  * cursor-jump issues caused by React Flow re-renders on store updates.
  */
-function ParameterInputInner({ param, name, value, onChange }: ParameterInputProps) {
+function ParameterInputInner({ param, name, label, value, onChange }: ParameterInputProps) {
   // Stable callback that passes name along with value
   const handleChange = useCallback((value: unknown) => {
     onChange(name, value);
   }, [name, onChange]);
-  const displayName = param.name
+  const displayName = label || param.name
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 

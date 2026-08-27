@@ -113,4 +113,16 @@ describe("fal.ai text field mapping", () => {
     expect(capturedQueueBody).not.toBeNull();
     expect(capturedQueueBody!.prompt).toBe("hello there");
   });
+
+  it("maps the generic prompt to a preview_text-only model", async () => {
+    vi.stubGlobal("fetch", createMockFetch({
+      preview_text: { type: "string", description: "Text to speak" },
+    }, ["preview_text"]));
+
+    await submitFalTask("test-req", "test-api-key", makeInput());
+
+    expect(capturedQueueBody).not.toBeNull();
+    expect(capturedQueueBody!.preview_text).toBe("hello there");
+    expect(capturedQueueBody!.prompt).toBeUndefined();
+  });
 });

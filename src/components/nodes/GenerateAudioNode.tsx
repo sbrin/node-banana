@@ -21,6 +21,7 @@ import { HandleLabel } from "./HandleLabel";
 import { useLoadGenerationById } from "@/hooks/useLoadGenerationById";
 import { useGenerationCarousel } from "@/hooks/useGenerationCarousel";
 import { GenerationCostBadge } from "./GenerationCostBadge";
+import { getPrimaryTextInput } from "@/utils/modelTextInput";
 
 type GenerateAudioNodeType = Node<GenerateAudioNodeData, "generateAudio">;
 
@@ -179,6 +180,12 @@ export function GenerateAudioNode({ id, data, selected }: NodeProps<GenerateAudi
 
   // Inline parameters: compute collapse state and toggle handler
   const isParamsExpanded = nodeData.parametersExpanded ?? true; // default expanded
+  const fallbackTextLabel =
+    getPrimaryTextInput({
+      inputSchema: nodeData.inputSchema,
+      requiredModelParameters: nodeData.requiredModelParameters,
+      parameters: nodeData.parameters,
+    })?.label ?? "Prompt";
 
   const handleToggleParams = useCallback(() => {
     updateNodeData(id, { parametersExpanded: !isParamsExpanded });
@@ -491,7 +498,7 @@ export function GenerateAudioNode({ id, data, selected }: NodeProps<GenerateAudi
               style={{ top: "50%", zIndex: 10 }}
             />
             <HandleLabel
-              label="Prompt"
+              label={fallbackTextLabel}
               side="target"
               color="var(--handle-color-text)"
               top="calc(50% - 18px)"

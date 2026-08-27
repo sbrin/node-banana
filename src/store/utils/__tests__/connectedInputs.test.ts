@@ -48,6 +48,19 @@ describe("getConnectedInputsPure", () => {
     expect(result.text).toBe("hello world");
   });
 
+  it("should use an inline model text field when no text wire is connected", () => {
+    const nodes = [
+      makeNode("gen", "generateAudio", {
+        requiredModelParameters: [{ name: "text", label: "Text" }],
+        parameters: { text: "typed in the node" },
+      }),
+    ];
+
+    const result = getConnectedInputsPure("gen", nodes, []);
+
+    expect(result.text).toBe("typed in the node");
+  });
+
   it("should extract image from annotation output", () => {
     const nodes = [
       makeNode("ann", "annotation", { outputImage: "data:image/png;base64,xyz" }),

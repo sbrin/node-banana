@@ -10,7 +10,21 @@
  */
 export const INPUT_PATTERNS: Record<string, string[]> = {
   // Text/prompt inputs
-  prompt: ["prompt", "text", "caption", "input_text", "description", "query"],
+  prompt: [
+    "prompt",
+    "text",
+    "input_text",
+    "preview_text",
+    "script",
+    "dialogue",
+    "caption",
+    "transcript",
+    "lyrics",
+    "system_prompt",
+    "style_prompt",
+    "description",
+    "query",
+  ],
   negativePrompt: ["negative_prompt", "negative", "neg_prompt", "negative_text"],
 
   // Image inputs

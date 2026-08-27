@@ -37,6 +37,7 @@ import {
   formatMissingRequiredModelParameters,
   getMissingRequiredModelParameters,
 } from "@/utils/requiredModelParameters";
+import { getInlineTextInputValue } from "@/utils/modelTextInput";
 
 /**
  * Return type for getConnectedInputs
@@ -465,6 +466,22 @@ export function getConnectedInputsPure(
         };
       }
     }
+  }
+
+  // Inline text fields are the local side of the same input exposed by a text
+  // connector. Treat the value as available when no wire supplied text, while
+  // dynamicInputs still preserve each provider's exact field name.
+  if (text === null && targetNode) {
+    text = getInlineTextInputValue(targetNode.data as {
+      inputSchema?: Array<{
+        name: string;
+        type: "image" | "text" | "audio" | "video";
+        required: boolean;
+        label: string;
+      }>;
+      parameters?: Record<string, unknown>;
+      requiredModelParameters?: Array<{ name: string; label: string }>;
+    });
   }
 
   return { images, videos, audio, model3d, text, textItems, dynamicInputs, easeCurve };
