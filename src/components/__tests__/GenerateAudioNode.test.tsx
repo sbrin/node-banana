@@ -336,5 +336,66 @@ describe("GenerateAudioNode", () => {
       const textHandle = container.querySelector('[data-handletype="text"]');
       expect(textHandle).toBeInTheDocument();
     });
+
+    it("should label schema handles and keep an indexed id mappable to the schema name", () => {
+      const { container } = render(
+        <TestWrapper>
+          <GenerateAudioNode {...createNodeProps({
+            selectedModel: { provider: "kie", modelId: "elevenlabs-turbo-v2.5", displayName: "ElevenLabs" },
+            inputSchema: [
+              { name: "prompt", type: "text", required: true, label: "Text Prompt" },
+              { name: "reference_audio", type: "audio", required: false, label: "Reference Audio" },
+            ],
+          })} />
+        </TestWrapper>
+      );
+
+      expect(screen.getByText("Text Prompt")).toBeInTheDocument();
+      expect(screen.getByText("Reference Audio")).toBeInTheDocument();
+      expect(container.querySelector('[data-handleid="text-0"]')).toBeInTheDocument();
+      expect(container.querySelector('[data-schema-name="prompt"]')).toBeInTheDocument();
+    });
+
+    it("should keep hidden legacy handles so pre-schema edges still resolve", () => {
+      const { container } = render(
+        <TestWrapper>
+          <GenerateAudioNode {...createNodeProps({
+            selectedModel: { provider: "kie", modelId: "elevenlabs-turbo-v2.5", displayName: "ElevenLabs" },
+            inputSchema: [
+              { name: "prompt", type: "text", required: true, label: "Text Prompt" },
+            ],
+          })} />
+        </TestWrapper>
+      );
+
+      expect(container.querySelector('[data-handleid="text"]')).toBeInTheDocument();
+    });
+
+    it("should label the fallback prompt handle when no schema is loaded", () => {
+      render(
+        <TestWrapper>
+          <GenerateAudioNode {...createNodeProps()} />
+        </TestWrapper>
+      );
+
+      expect(screen.getByText("Prompt")).toBeInTheDocument();
+    });
+
+    it("should use the saved model field name while the schema is loading", () => {
+      render(
+        <TestWrapper>
+          <GenerateAudioNode
+            {...createNodeProps({
+              selectedModel: { provider: "fal", modelId: "xai/tts/v1", displayName: "xAI Text to Speech" },
+              requiredModelParameters: [{ name: "text", label: "Text" }],
+              parameters: { language: "en", voice: "ara" },
+            })}
+          />
+        </TestWrapper>
+      );
+
+      expect(screen.getByText("Text")).toBeInTheDocument();
+      expect(screen.queryByText("Prompt")).not.toBeInTheDocument();
+    });
   });
 });

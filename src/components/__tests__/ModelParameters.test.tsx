@@ -797,6 +797,45 @@ describe("ModelParameters", () => {
       });
     });
 
+    it("should render the same text field that is exposed as a connector", async () => {
+      const onParametersChange = vi.fn();
+      const onRequiredParametersLoaded = vi.fn();
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            parameters: [],
+            inputs: [{
+              name: "text",
+              type: "text",
+              required: true,
+              label: "Text",
+            }],
+          }),
+      });
+
+      render(
+        <ModelParameters
+          {...defaultProps}
+          onParametersChange={onParametersChange}
+          onRequiredParametersLoaded={onRequiredParametersLoaded}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole("textbox")).toBeInTheDocument();
+        expect(screen.getByText("Text")).toBeInTheDocument();
+        expect(onRequiredParametersLoaded).toHaveBeenCalledWith([
+          { name: "text", label: "Text" },
+        ]);
+      });
+
+      const textInput = screen.getByRole("textbox");
+      fireEvent.change(textInput, { target: { value: "Hello" } });
+      fireEvent.blur(textInput);
+      expect(onParametersChange).toHaveBeenLastCalledWith({ text: "Hello" });
+    });
+
     it("should fetch schema and call onInputsLoaded for Gemini", async () => {
       const onInputsLoaded = vi.fn();
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({

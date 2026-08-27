@@ -225,7 +225,8 @@ export async function executeGenerate3D(
 
   const missingParameters = getMissingRequiredModelParameters(
     nodeData.requiredModelParameters,
-    nodeData.parameters
+    nodeData.parameters,
+    dynamicInputs
   );
   if (missingParameters.length > 0) {
     const error = formatMissingRequiredModelParameters(missingParameters);

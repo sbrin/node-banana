@@ -78,8 +78,52 @@ const VIDEO_INPUT_PATTERNS = [
   "control_video",
 ];
 
-// Text input properties
-const TEXT_INPUT_NAMES = ["prompt", "negative_prompt"];
+// Text input properties. Models name their text field inconsistently
+// (`prompt`, `text`, `preview_text`, `script`, ...), so this list is only the
+// fast path — isTextInput() also infers text inputs from the schema itself.
+const TEXT_INPUT_NAMES = [
+  "prompt",
+  "negative_prompt",
+  "text",
+  "input_text",
+  "preview_text",
+  "script",
+  "dialogue",
+  "caption",
+  "transcript",
+  "lyrics",
+  "system_prompt",
+  "style_prompt",
+];
+
+// Text field names, in priority order, that a node already feeds from its own
+// prompt/connected text. These stay connector-only; every other text field also
+// gets an inline editable parameter so it is usable without wiring a node.
+const PRIMARY_TEXT_NAMES = ["prompt", "text", "input_text"];
+
+// Substrings that mark a string property as configuration rather than free text
+// (voice ids, formats, enums-by-convention). Guards the inferred-text fallback.
+const NON_TEXT_NAME_PATTERNS = [
+  "url",
+  "_id",
+  "id_",
+  "format",
+  "model",
+  "voice",
+  "language",
+  "code",
+  "seed",
+  "key",
+  "mode",
+  "size",
+  "ratio",
+  "resolution",
+  "version",
+  "type",
+  "path",
+  "token",
+  "webhook",
+];
 
 // Properties that start with "image_" but are NOT image inputs
 const IMAGE_PREFIX_EXCLUSIONS = ["image_size"];
@@ -294,12 +338,37 @@ function isVideoInput(name: string, prop: Record<string, unknown>, schemaCompone
 }
 
 /**
- * Check if property is a text input
+ * Check if property is a text input.
+ *
+ * Known names match directly. Anything else is treated as text only when the
+ * schema itself says it is free-form prose: a plain string, no enum, no format,
+ * and a name that does not look like configuration (voice_id, output_format...).
+ * This is what lets `text`-style models expose a real connector instead of
+ * silently demanding a `prompt` field they do not have.
  */
-function isTextInput(name: string): boolean {
-  return TEXT_INPUT_NAMES.includes(name);
-}
+function isTextInput(
+  name: string,
+  prop?: Record<string, unknown>,
+  schemaComponents?: Record<string, unknown>,
+  required: string[] = []
+): boolean {
+  if (TEXT_INPUT_NAMES.includes(name)) return true;
+  if (!prop) return false;
 
+  // Only required free-text fields are promoted. Optional prose fields stay
+  // parameters so nodes do not sprout handles for every incidental string.
+  if (!required.includes(name)) return false;
+
+  const resolved = resolvePropertyType(prop, schemaComponents);
+  if (resolved.type !== "string") return false;
+  if (resolved.format) return false;
+  if (Array.isArray(prop.enum)) return false;
+
+  const lowerName = name.toLowerCase();
+  if (NON_TEXT_NAME_PATTERNS.some((pattern) => lowerName.includes(pattern))) return false;
+
+  return true;
+}
 /**
  * Resolve a $ref reference in OpenAPI schema
  * E.g., "#/components/schemas/AspectRatio" -> schema object
@@ -671,7 +740,7 @@ function extractParametersFromSchema(
       continue;
     }
 
-    if (isTextInput(name)) {
+    if (isTextInput(name, prop, schemaComponents, required)) {
       inputs.push({
         name,
         type: "text",
@@ -680,6 +749,13 @@ function extractParametersFromSchema(
         description: prop.description as string | undefined,
         isArray: prop.type === "array",
       });
+      // Secondary text fields (e.g. preview_text alongside prompt) are also
+      // surfaced as editable parameters so they can be filled in place instead
+      // of forcing an extra Prompt node for every required string.
+      if (!PRIMARY_TEXT_NAMES.includes(name)) {
+        const textParam = convertSchemaProperty(name, prop, required, schemaComponents);
+        if (textParam) parameters.push(textParam);
+      }
       continue;
     }
 
@@ -706,6 +782,18 @@ function extractParametersFromSchema(
     const aOrder = inputTypeOrder[a.type] ?? 4;
     const bOrder = inputTypeOrder[b.type] ?? 4;
     if (aOrder !== bOrder) return aOrder - bOrder;
+    // The primary text field must stay the first text handle: executors send the
+    // node's own prompt to text-0, so letting `preview_text` sort ahead of
+    // `prompt` alphabetically would route the prompt into the wrong API field.
+    if (a.type === "text" && b.type === "text") {
+      const aPrimary = PRIMARY_TEXT_NAMES.indexOf(a.name);
+      const bPrimary = PRIMARY_TEXT_NAMES.indexOf(b.name);
+      if (aPrimary !== bPrimary) {
+        if (aPrimary === -1) return 1;
+        if (bPrimary === -1) return -1;
+        return aPrimary - bPrimary;
+      }
+    }
     return a.name.localeCompare(b.name);
   });
 

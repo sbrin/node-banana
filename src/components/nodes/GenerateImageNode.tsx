@@ -24,6 +24,7 @@ import { useGenerationCarousel } from "@/hooks/useGenerationCarousel";
 import { useAutoResizeOnMedia } from "@/hooks/useAutoResizeOnMedia";
 import { GenerationCostBadge } from "./GenerationCostBadge";
 import { normalizeGenerationHistoryIndex } from "@/utils/generationCarousel";
+import { getPrimaryTextInput } from "@/utils/modelTextInput";
 
 /** Reorder items so they read column-first in a row-based CSS grid.
  *  e.g. [1,2,3,4,5,6,7,8] with 2 cols → [1,5,2,6,3,7,4,8] */
@@ -175,6 +176,12 @@ export function GenerateImageNode({ id, data, selected }: NodeProps<NanoBananaNo
 
   // Inline parameters: compute collapse state and toggle handler
   const isParamsExpanded = nodeData.parametersExpanded ?? true; // default expanded
+  const fallbackTextLabel =
+    getPrimaryTextInput({
+      inputSchema: nodeData.inputSchema,
+      requiredModelParameters: nodeData.requiredModelParameters,
+      parameters: nodeData.parameters,
+    })?.label ?? "Prompt";
 
   const handleToggleParams = useCallback(() => {
     updateNodeData(id, { parametersExpanded: !isParamsExpanded });
@@ -626,7 +633,7 @@ export function GenerateImageNode({ id, data, selected }: NodeProps<NanoBananaNo
         isConnectable={true}
       />
       {/* Prompt label */}
-      <HandleLabel label="Prompt" side="target" color="var(--handle-color-text)" top="calc(65% - 18px)" visible={showLabels} />
+      <HandleLabel label={fallbackTextLabel} side="target" color="var(--handle-color-text)" top="calc(65% - 18px)" visible={showLabels} />
       {/* Output handle */}
       <Handle
         type="source"

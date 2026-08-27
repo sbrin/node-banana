@@ -24,6 +24,7 @@ import { useLoadGenerationById } from "@/hooks/useLoadGenerationById";
 import { useGenerationCarousel } from "@/hooks/useGenerationCarousel";
 import { useAutoResizeOnMedia } from "@/hooks/useAutoResizeOnMedia";
 import { GenerationCostBadge } from "./GenerationCostBadge";
+import { getPrimaryTextInput } from "@/utils/modelTextInput";
 
 // Video generation capabilities
 const VIDEO_CAPABILITIES: ModelCapability[] = ["text-to-video", "image-to-video", "audio-to-video"];
@@ -151,6 +152,12 @@ export function GenerateVideoNode({ id, data, selected }: NodeProps<GenerateVide
 
   // Inline parameters: compute collapse state and toggle handler
   const isParamsExpanded = nodeData.parametersExpanded ?? true; // default expanded
+  const fallbackTextLabel =
+    getPrimaryTextInput({
+      inputSchema: nodeData.inputSchema,
+      requiredModelParameters: nodeData.requiredModelParameters,
+      parameters: nodeData.parameters,
+    })?.label ?? "Prompt";
 
   const handleToggleParams = useCallback(() => {
     updateNodeData(id, { parametersExpanded: !isParamsExpanded });
@@ -622,7 +629,7 @@ export function GenerateVideoNode({ id, data, selected }: NodeProps<GenerateVide
             data-handletype="text"
           />
           {/* Default text label */}
-          <HandleLabel label="Prompt" side="target" color="var(--handle-color-text)" top="calc(65% - 18px)" visible={showLabels} />
+          <HandleLabel label={fallbackTextLabel} side="target" color="var(--handle-color-text)" top="calc(65% - 18px)" visible={showLabels} />
         </>
       )}
       {/* Video output */}

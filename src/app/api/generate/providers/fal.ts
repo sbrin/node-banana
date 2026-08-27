@@ -259,31 +259,31 @@ async function getFalInputMapping(modelId: string, apiKey: string | null): Promi
     // Second pass: match properties to INPUT_PATTERNS and detect array types
     const propertyNames = Object.keys(properties);
     for (const [genericName, patterns] of Object.entries(INPUT_PATTERNS)) {
-      for (const pattern of patterns) {
-        let matchedParam: string | null = null;
+      // Exact matches are resolved across every pattern before any fuzzy match
+      // is considered. Otherwise a model exposing `prompt_influence` and `text`
+      // would fuzzy-match the earlier "prompt" pattern and send the prompt into
+      // a numeric knob instead of the real text field.
+      let matchedParam = patterns.find((pattern) => properties[pattern]) ?? null;
 
-        // Check for exact match first
-        if (properties[pattern]) {
-          matchedParam = pattern;
-        } else {
-          // Check for case-insensitive partial match
+      if (!matchedParam) {
+        for (const pattern of patterns) {
           const match = propertyNames.find(name =>
             name.toLowerCase().includes(pattern.toLowerCase()) ||
             pattern.toLowerCase().includes(name.toLowerCase())
           );
           if (match) {
             matchedParam = match;
+            break;
           }
         }
+      }
 
-        if (matchedParam) {
-          paramMap[genericName] = matchedParam;
-          // Check if this property expects an array type
-          const property = properties[matchedParam] as Record<string, unknown>;
-          if (property?.type === "array") {
-            arrayParams.add(genericName);
-          }
-          break;
+      if (matchedParam) {
+        paramMap[genericName] = matchedParam;
+        // Check if this property expects an array type
+        const property = properties[matchedParam] as Record<string, unknown>;
+        if (property?.type === "array") {
+          arrayParams.add(genericName);
         }
       }
     }
