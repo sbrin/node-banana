@@ -285,6 +285,8 @@ describe("FloatingActionBar", () => {
       // Dropdown menu items should appear
       expect(screen.getByText("Image", { selector: "button.w-full" })).toBeInTheDocument();
       expect(screen.getByText("Video", { selector: "button.w-full" })).toBeInTheDocument();
+      expect(screen.getByText("Audio", { selector: "button.w-full" })).toBeInTheDocument();
+      expect(screen.getByText("3D", { selector: "button.w-full" })).toBeInTheDocument();
       expect(screen.getByText("Text (LLM)")).toBeInTheDocument();
     });
 
@@ -341,6 +343,40 @@ describe("FloatingActionBar", () => {
       fireEvent.click(screen.getByText("Text (LLM)"));
 
       expect(mockAddNode).toHaveBeenCalledWith("llmGenerate", expect.any(Object));
+    });
+
+    it("should add generateAudio node when Audio option is clicked", async () => {
+      render(
+        <TestWrapper>
+          <FloatingActionBar />
+        </TestWrapper>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Generate")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText("Generate"));
+      fireEvent.click(screen.getByText("Audio", { selector: "button.w-full" }));
+
+      expect(mockAddNode).toHaveBeenCalledWith("generateAudio", expect.any(Object));
+    });
+
+    it("should add generate3d node when 3D option is clicked", async () => {
+      render(
+        <TestWrapper>
+          <FloatingActionBar />
+        </TestWrapper>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Generate")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText("Generate"));
+      fireEvent.click(screen.getByText("3D", { selector: "button.w-full" }));
+
+      expect(mockAddNode).toHaveBeenCalledWith("generate3d", expect.any(Object));
     });
 
     it("should close dropdown after selecting an option", async () => {
