@@ -449,6 +449,72 @@ describe("/api/models/[modelId] schema endpoint", () => {
       expect(textInputNames).toContain("prompt");
       expect(paramNames).toContain("num_inference_steps");
     });
+
+    // Real schema: fal-ai/kling-video/v1/tts requires "text", not "prompt".
+    // Before this was schema-driven the node exposed a Prompt connector for a
+    // field the API does not have, and the request failed validation.
+    it("should expose a text-named field as a connectable input", async () => {
+      mockFetch.mockResolvedValueOnce(
+        createFalModelResponse({
+          text: { type: "string", description: "The text to be converted to speech" },
+          voice_id: { type: "string", description: "The voice ID to use" },
+          voice_speed: { type: "number", description: "Rate of speech" },
+        }, ["text"])
+      );
+
+      const modelId = `fal-ai/kling-tts-${testCounter}`;
+      const request = createMockSchemaRequest(modelId, "fal");
+      const response = await GET(request, { params: Promise.resolve({ modelId }) });
+      const data = await response.json();
+
+      const textInputs = data.inputs.filter((i: { type: string }) => i.type === "text");
+      expect(textInputs.map((i: { name: string }) => i.name)).toEqual(["text"]);
+      expect(textInputs[0].required).toBe(true);
+      // voice_id is configuration, not free text — it must stay a parameter.
+      expect(data.parameters.map((p: { name: string }) => p.name)).toContain("voice_id");
+      expect(data.inputs.map((i: { name: string }) => i.name)).not.toContain("voice_id");
+    });
+
+    // Real schema: fal-ai/minimax/voice-design requires both prompt and
+    // preview_text. The second required string must be connectable AND
+    // editable inline, and "prompt" must remain the first text handle.
+    it("should expose secondary required text fields as inputs and parameters", async () => {
+      mockFetch.mockResolvedValueOnce(
+        createFalModelResponse({
+          prompt: { type: "string", description: "Voice description prompt" },
+          preview_text: { type: "string", description: "Text for audio preview" },
+        }, ["prompt", "preview_text"])
+      );
+
+      const modelId = `fal-ai/voice-design-${testCounter}`;
+      const request = createMockSchemaRequest(modelId, "fal");
+      const response = await GET(request, { params: Promise.resolve({ modelId }) });
+      const data = await response.json();
+
+      const textInputNames = data.inputs
+        .filter((i: { type: string }) => i.type === "text")
+        .map((i: { name: string }) => i.name);
+      expect(textInputNames).toEqual(["prompt", "preview_text"]);
+      expect(data.parameters.map((p: { name: string }) => p.name)).toContain("preview_text");
+      expect(data.parameters.map((p: { name: string }) => p.name)).not.toContain("prompt");
+    });
+
+    it("should not promote optional prose strings to connectors", async () => {
+      mockFetch.mockResolvedValueOnce(
+        createFalModelResponse({
+          prompt: { type: "string", description: "Prompt" },
+          style_hint: { type: "string", description: "Optional styling note" },
+        }, ["prompt"])
+      );
+
+      const modelId = `fal-ai/optional-text-${testCounter}`;
+      const request = createMockSchemaRequest(modelId, "fal");
+      const response = await GET(request, { params: Promise.resolve({ modelId }) });
+      const data = await response.json();
+
+      expect(data.inputs.map((i: { name: string }) => i.name)).not.toContain("style_hint");
+      expect(data.parameters.map((p: { name: string }) => p.name)).toContain("style_hint");
+    });
   });
 
   describe("real Fal Kling v2.6 pro image-to-video schema", () => {
